@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ui-component-agent"
+version = "0.1.0"
+description = "Google ADK Agent for UI Component Demo"
+authors = [
+    {name = "dptech-corp", email = "it@dp.tech"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "google-adk>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "uvicorn[standard]>=0.24.0",
+    "fastapi>=0.104.0",
+    "litellm>=1.72.6",
+    "pymysql>=1.1.0",
+    "cryptography>=41.0.0",
+    "sqlalchemy>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.6.0"
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 88
