@@ -10,7 +10,7 @@ type ConvItem =
 interface ADKPart {
   text?: string;
   thought?: boolean;
-  functionCall?:    { name: string; args?: Record<string, unknown>; id?: string };
+  functionCall?:     { name: string; args?: Record<string, unknown>; id?: string };
   functionResponse?: { name: string; response?: unknown; id?: string };
 }
 interface ADKEvent {
@@ -29,33 +29,37 @@ function ToolBubble({ item }: { item: Extract<ConvItem, { kind: 'tool' }> }) {
   const done = item.result !== undefined;
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 text-xs font-mono w-fit max-w-[85%]">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 text-xs font-mono w-fit max-w-[85%] overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-2 text-blue-700 font-sans font-medium text-sm w-full"
+        className="flex items-center gap-2.5 px-4 py-2.5 w-full text-left"
       >
-        <span className="text-blue-400">⚙</span>
-        <span>{item.name}</span>
+        {/* animated gear icon */}
+        <span className={`text-slate-400 text-base ${!done ? 'animate-spin' : ''}`}
+              style={done ? {} : { animationDuration: '2s' }}>
+          ⚙
+        </span>
+        <span className="font-sans font-medium text-slate-600 text-[13px] tracking-tight">{item.name}</span>
         {done
-          ? <span className="ml-1 text-green-500 text-xs">✓</span>
-          : <span className="ml-1 text-amber-400 text-xs animate-pulse">…</span>}
-        <span className="ml-3 text-blue-300 text-xs">{open ? '▾' : '▸'}</span>
+          ? <span className="ml-0.5 text-emerald-500 text-xs font-sans">✓</span>
+          : <span className="ml-0.5 text-amber-400 text-xs font-sans animate-pulse">running</span>}
+        <span className="ml-auto text-slate-300 font-sans text-xs">{open ? '▾' : '▸'}</span>
       </button>
 
       {open && (
-        <div className="px-3 pb-3 space-y-2 border-t border-blue-100 pt-2">
+        <div className="border-t border-slate-200 bg-white divide-y divide-slate-100">
           {item.args !== undefined && (
-            <div>
-              <div className="text-blue-400 text-[10px] mb-1">Input</div>
-              <pre className="whitespace-pre-wrap break-words text-blue-800">
+            <div className="px-4 py-3">
+              <div className="text-[10px] font-sans font-semibold text-slate-400 uppercase tracking-widest mb-1.5">Input</div>
+              <pre className="whitespace-pre-wrap break-words text-slate-700 leading-relaxed">
                 {JSON.stringify(item.args, null, 2)}
               </pre>
             </div>
           )}
           {done && (
-            <div>
-              <div className="text-green-500 text-[10px] mb-1">Output</div>
-              <pre className="whitespace-pre-wrap break-words text-green-800">
+            <div className="px-4 py-3">
+              <div className="text-[10px] font-sans font-semibold text-emerald-500 uppercase tracking-widest mb-1.5">Output</div>
+              <pre className="whitespace-pre-wrap break-words text-slate-700 leading-relaxed">
                 {typeof item.result === 'string'
                   ? item.result
                   : JSON.stringify(item.result, null, 2)}
@@ -68,15 +72,26 @@ function ToolBubble({ item }: { item: Extract<ConvItem, { kind: 'tool' }> }) {
   );
 }
 
+// ── Avatar ─────────────────────────────────────────────────────────────────
+
+function Avatar() {
+  return (
+    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
+      <span className="text-white text-xs font-bold">AI</span>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function Chat() {
-  const [items, setItems]     = useState<ConvItem[]>([]);
-  const [input, setInput]     = useState('');
+  const [items, setItems]         = useState<ConvItem[]>([]);
+  const [input, setInput]         = useState('');
   const [streaming, setStreaming] = useState(false);
-  const sessionId  = useRef(uid());
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const apiUrl     = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const sessionId = useRef(uid());
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const apiUrl    = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,10 +103,12 @@ export function Chat() {
 
     setItems(prev => [...prev, { kind: 'user', id: uid(), text }]);
     setInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '42px';
+    }
     setStreaming(true);
 
-    // mutable refs so closure always sees latest values
-    const pendingTools: Record<string, string> = {};  // callId/name → item id
+    const pendingTools: Record<string, string> = {};
     let curTextId: string | null = null;
 
     const pushTextItem = () => {
@@ -100,7 +117,6 @@ export function Chat() {
       setItems(prev => [...prev, { kind: 'text', id, text: '', streaming: true }]);
     };
 
-    // Show loading dots immediately
     pushTextItem();
 
     try {
@@ -140,9 +156,8 @@ export function Chat() {
             }
 
             for (const part of evt.content?.parts ?? []) {
-              if (part.thought) continue;   // skip thinking content
+              if (part.thought) continue;
 
-              // ── Text ──────────────────────────────────────────────────
               if (part.text) {
                 if (!curTextId) pushTextItem();
                 const tid = curTextId!;
@@ -153,24 +168,20 @@ export function Chat() {
                 ));
               }
 
-              // ── Tool call ──────────────────────────────────────────────
               if (part.functionCall) {
                 const fc = part.functionCall;
                 const itemId = uid();
-                const key = fc.id ?? fc.name;
-                pendingTools[key] = itemId;
-                curTextId = null;   // next text → new bubble
+                pendingTools[fc.id ?? fc.name] = itemId;
+                curTextId = null;
                 setItems(prev => [...prev, {
                   kind: 'tool', id: itemId, callId: fc.id,
                   name: fc.name, args: fc.args,
                 }]);
               }
 
-              // ── Tool result ────────────────────────────────────────────
               if (part.functionResponse) {
                 const fr = part.functionResponse;
-                const key = fr.id ?? fr.name;
-                const itemId = pendingTools[key];
+                const itemId = pendingTools[fr.id ?? fr.name];
                 if (itemId) {
                   setItems(prev => prev.map(item =>
                     item.id === itemId && item.kind === 'tool'
@@ -204,53 +215,76 @@ export function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white">
-      {/* Header */}
-      <div className="border-b px-6 py-3 flex items-center gap-2 shrink-0">
-        <div className="w-2 h-2 rounded-full bg-green-500" />
-        <span className="font-semibold text-gray-700">AI Agent Chat</span>
+    <div className="flex flex-col h-screen bg-slate-50">
+
+      {/* ── Header ── */}
+      <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4 flex items-center gap-3 shadow-sm">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow">
+          <span className="text-white text-xs font-bold">AI</span>
+        </div>
+        <div>
+          <div className="font-semibold text-slate-800 text-sm leading-none">Agent Chat</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">由 MCP 工具驱动</div>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          在线
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+      {/* ── Messages ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+
         {items.length === 0 && (
-          <div className="text-center text-gray-400 mt-20 text-sm">
-            <div className="text-4xl mb-3">💬</div>
-            <p>发送消息开始对话</p>
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 select-none">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center text-3xl shadow-inner">
+              💬
+            </div>
+            <p className="text-sm font-medium text-slate-500">发送消息开始对话</p>
+            <p className="text-xs text-slate-400">支持工具调用，结果实时流式返回</p>
           </div>
         )}
 
         {items.map(item => {
+
+          /* user */
           if (item.kind === 'user') return (
-            <div key={item.id} className="flex justify-end">
-              <div className="rounded-2xl rounded-tr-sm bg-blue-500 text-white px-4 py-2.5 text-sm max-w-[75%] leading-relaxed">
+            <div key={item.id} className="flex justify-end gap-2 items-end">
+              <div className="rounded-2xl rounded-br-sm bg-gradient-to-br from-violet-500 to-indigo-600 text-white px-4 py-3 text-sm max-w-[72%] leading-relaxed shadow-sm">
                 {item.text}
               </div>
             </div>
           );
 
+          /* tool */
           if (item.kind === 'tool') return (
-            <div key={item.id} className="flex justify-start">
+            <div key={item.id} className="flex justify-start gap-2 items-start">
+              <Avatar />
               <ToolBubble item={item} />
             </div>
           );
 
-          // text bubble
+          /* assistant text */
           return (
-            <div key={item.id} className="flex justify-start">
-              <div className="rounded-2xl rounded-tl-sm bg-gray-100 px-4 py-2.5 text-sm max-w-[85%] leading-relaxed text-gray-800 whitespace-pre-wrap">
+            <div key={item.id} className="flex justify-start gap-2 items-start">
+              <Avatar />
+              <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 text-sm max-w-[80%] leading-relaxed text-slate-800 whitespace-pre-wrap shadow-sm">
                 {item.text
                   ? <>
                       {item.text}
                       {item.streaming && (
-                        <span className="inline-block w-0.5 h-3.5 bg-gray-500 ml-0.5 animate-pulse align-middle" />
+                        <span className="inline-block w-0.5 h-[1em] bg-violet-400 ml-0.5 align-middle animate-pulse rounded-full" />
                       )}
                     </>
                   : item.streaming && (
-                      <span className="flex gap-1 text-gray-400">
-                        <span className="animate-bounce" style={{ animationDelay: '0ms' }}>·</span>
-                        <span className="animate-bounce" style={{ animationDelay: '150ms' }}>·</span>
-                        <span className="animate-bounce" style={{ animationDelay: '300ms' }}>·</span>
+                      <span className="flex gap-1 items-center h-4">
+                        {[0, 150, 300].map(delay => (
+                          <span
+                            key={delay}
+                            className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce"
+                            style={{ animationDelay: `${delay}ms` }}
+                          />
+                        ))}
                       </span>
                     )
                 }
@@ -262,33 +296,43 @@ export function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t px-6 py-4 shrink-0">
-        <div className="flex gap-2 items-end">
-          <textarea
-            className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors leading-relaxed"
-            rows={1}
-            placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={streaming}
-            style={{ minHeight: '42px', maxHeight: '160px' }}
-            onInput={e => {
-              const t = e.currentTarget;
-              t.style.height = 'auto';
-              t.style.height = Math.min(t.scrollHeight, 160) + 'px';
-            }}
-          />
+      {/* ── Input ── */}
+      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-4">
+        <div className="max-w-3xl mx-auto flex gap-3 items-end">
+          <div className="flex-1 relative">
+            <textarea
+              ref={textareaRef}
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100 transition-all leading-relaxed placeholder:text-slate-400 disabled:opacity-50"
+              rows={1}
+              placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={streaming}
+              style={{ minHeight: '46px', maxHeight: '160px' }}
+              onInput={e => {
+                const t = e.currentTarget;
+                t.style.height = 'auto';
+                t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+              }}
+            />
+          </div>
           <button
             onClick={send}
             disabled={streaming || !input.trim()}
-            className="rounded-xl bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white px-4 py-2.5 text-sm font-medium transition-colors shrink-0"
+            className="shrink-0 w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shadow-sm hover:shadow active:scale-95"
           >
-            {streaming ? '…' : '发送'}
+            {streaming
+              ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <svg className="w-4 h-4 rotate-90" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
+                </svg>
+            }
           </button>
         </div>
+        <p className="text-center text-[11px] text-slate-300 mt-2">Enter 发送 · Shift+Enter 换行</p>
       </div>
+
     </div>
   );
 }
