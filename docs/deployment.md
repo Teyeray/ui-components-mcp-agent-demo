@@ -99,7 +99,20 @@ poetry install
 poetry run fastapi dev app/main.py
 ```
 
-#### 4. 启动前端应用
+
+#### 4. 启动agent
+```bash
+# 在启动 agent 的同一个 shell 执行：
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY=localhost,127.0.0.1,::1
+export no_proxy=localhost,127.0.0.1,::1
+
+
+#然后启动agent
+uv run adk web --host 0.0.0.0 --port 8002
+```
+
+#### 5. 启动前端应用
 ```bash
 cd frontend
 

@@ -17,8 +17,13 @@ if [ -f .env ]; then
     export $(cat .env | xargs)
 fi
 
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY=localhost,127.0.0.1,::1
+export no_proxy=localhost,127.0.0.1,::1
+
 export REDIS_URL=${REDIS_URL:-"redis://localhost:6379"}
 export CORS_ORIGINS=${CORS_ORIGINS:-"http://localhost:3000,http://localhost:5173"}
+export AGENT_URL=${AGENT_URL:-"http://localhost:8002"}
 
 echo "Starting FastAPI server on http://localhost:8000"
 echo "API documentation available at http://localhost:8000/docs"
