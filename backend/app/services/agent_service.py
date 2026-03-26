@@ -15,8 +15,14 @@ from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.tools import FunctionTool
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseConnectionParams
 from google.genai import types
+
+
+async def deep_research(query: str) -> str:
+    """Deep research placeholder — not yet implemented."""
+    return f"[deep_research] This tool is not yet implemented. Query received: {query}"
 
 
 def _serialize_event(event: Any) -> dict:
@@ -90,11 +96,7 @@ class AgentService:
                 url=f"{mcp_url}/sse",
                 headers={},
             ),
-            tool_filter=[
-                "add_todo", "delete_todo", "update_todo", "toggle_todo", "list_todo",
-                "add_backlog", "delete_backlog", "update_backlog", "send_backlog_to_todo", "list_backlog",
-                "ls", "cat_run_sh", "bash_run_sh",
-            ],
+            tool_filter=["ls", "cat_run_sh", "bash_run_sh"],
         )
 
         agent = LlmAgent(
@@ -109,7 +111,7 @@ class AgentService:
                 "You can add, update, delete, and toggle todo items using the available MCP tools. "
                 "Always be helpful and provide clear feedback about the actions you take."
             ),
-            tools=[mcp_toolset],
+            tools=[mcp_toolset, FunctionTool(deep_research)],
         )
 
         return Runner(

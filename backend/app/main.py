@@ -17,7 +17,8 @@ from .services.sse_service import SSEService
 from .services.todo_service import TodoService
 from .services.backlog_service import BacklogService
 from .services.agent_service import AgentService
-from .routers import todos, backlogs, events, health, agent
+from .services.chat_service import ChatService
+from .routers import todos, backlogs, events, health, agent, chat
 
 
 redis_service = RedisService()
@@ -25,6 +26,7 @@ sse_service = SSEService()
 todo_service = TodoService()
 backlog_service = BacklogService()
 agent_service = AgentService()
+chat_service = ChatService(redis_service, agent_service)
 
 
 @asynccontextmanager
@@ -64,12 +66,14 @@ app.include_router(events.router)
 app.include_router(todos.router, prefix="/api")
 app.include_router(backlogs.router, prefix="/api")
 app.include_router(agent.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 app.state.redis_service = redis_service
 app.state.sse_service = sse_service
 app.state.todo_service = todo_service
 app.state.backlog_service = backlog_service
 app.state.agent_service = agent_service
+app.state.chat_service = chat_service
 
 
 @app.get("/")
