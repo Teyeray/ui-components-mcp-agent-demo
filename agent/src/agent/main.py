@@ -7,7 +7,7 @@ control of the todo list component.
 
 import os
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StreamableHTTPConnectionParams
 from dotenv import load_dotenv
 from google.adk.models.lite_llm import LiteLlm
 
@@ -19,7 +19,7 @@ def create_agent():
     #mcp_server_url = os.getenv("MCP_SERVER_URL", "http://mcp-server:8001")
     mcp_server_url = 'http://localhost:50001'
     mcp_toolset = MCPToolset(
-        connection_params=SseConnectionParams(
+        connection_params=StreamableHTTPConnectionParams(
             url=f"{mcp_server_url}/sse",
             headers={}
         ),
