@@ -11,6 +11,7 @@ os.environ["NO_PROXY"] = "localhost,127.0.0.1,::1"
 os.environ["no_proxy"] = "localhost,127.0.0.1,::1"
 
 from google.adk.agents import LlmAgent
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -117,12 +118,7 @@ class AgentService:
             session_service=self._session_service,
         )
 
-    async def run(self, message: str, session_id: str = "default") -> list[dict]:
-        """Run the agent and return serialised events."""
-        if self._runner is None:
-            self._runner = self._build_runner()
-
-        # Ensure session exists
+    async def _ensure_session(self, session_id: str) -> None:
         existing = await self._session_service.get_session(
             app_name=self.APP_NAME,
             user_id=self.USER_ID,
@@ -136,17 +132,18 @@ class AgentService:
                 state={},
             )
 
-        content = types.Content(
-            role="user",
-            parts=[types.Part(text=message)],
-        )
+    async def stream(self, message: str, session_id: str = "default"):
+        """Yield serialised ADK events one by one as they arrive."""
+        if self._runner is None:
+            self._runner = self._build_runner()
+        await self._ensure_session(session_id)
 
-        events = []
+        content = types.Content(role="user", parts=[types.Part(text=message)])
+        run_config = RunConfig(streaming_mode=StreamingMode.SSE)
         async for event in self._runner.run_async(
             session_id=session_id,
             user_id=self.USER_ID,
             new_message=content,
+            run_config=run_config,
         ):
-            events.append(_serialize_event(event))
-
-        return events
+            yield _serialize_event(event)
