@@ -84,7 +84,13 @@ function Avatar() {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function Chat() {
+interface ChatProps {
+  token: string;
+  username: string;
+  onLogout: () => void;
+}
+
+export function Chat({ token, username, onLogout }: ChatProps) {
   const [sessions, setSessions]   = useState<Session[]>([]);
   const [activeId, setActiveId]   = useState<string | null>(null);
   const [items, setItems]         = useState<ConvItem[]>([]);
@@ -95,6 +101,14 @@ export function Chat() {
   const readerRef    = useRef<ReadableStreamDefaultReader | null>(null);
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const apiFetch = useCallback(async (input: string, init?: RequestInit) => {
+    const res = await fetch(input, { ...init, headers: { ...authHeaders, ...init?.headers } });
+    if (res.status === 401) { onLogout(); throw new Error('Unauthorized'); }
+    return res;
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [items]);
@@ -102,11 +116,12 @@ export function Chat() {
   // ── Session management ─────────────────────────────────────────────────
 
   const loadSessions = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/sessions`);
+    const res = await apiFetch(`${apiUrl}/api/sessions`).catch(() => null);
+    if (!res) return [];
     const data: Session[] = await res.json();
     setSessions(data);
     return data;
-  }, [apiUrl]);
+  }, [apiUrl, apiFetch]);
 
   useEffect(() => {
     loadSessions().then(data => {
@@ -115,14 +130,14 @@ export function Chat() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createSession = async () => {
-    const res = await fetch(`${apiUrl}/api/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    const res = await apiFetch(`${apiUrl}/api/sessions`, { method: 'POST', body: JSON.stringify({}) });
     const s: Session = await res.json();
     setSessions(prev => [...prev, s]);
     switchSession(s.id);
   };
 
   const deleteSession = async (id: string) => {
-    await fetch(`${apiUrl}/api/sessions/${id}`, { method: 'DELETE' });
+    await apiFetch(`${apiUrl}/api/sessions/${id}`, { method: 'DELETE' }).catch(() => null);
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
       if (activeId === id) {
@@ -134,24 +149,19 @@ export function Chat() {
   };
 
   const renameSession = async (id: string, name: string) => {
-    await fetch(`${apiUrl}/api/sessions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
+    await apiFetch(`${apiUrl}/api/sessions/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }).catch(() => null);
     setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s));
   };
 
   const switchSession = async (id: string) => {
-    // Cancel any ongoing stream
     if (readerRef.current) {
       try { await readerRef.current.cancel(); } catch { /* ignore */ }
       readerRef.current = null;
     }
     setStreaming(false);
     setActiveId(id);
-    // Load history
-    const res = await fetch(`${apiUrl}/api/sessions/${id}/history`);
+    const res = await apiFetch(`${apiUrl}/api/sessions/${id}/history`).catch(() => null);
+    if (!res) return;
     const history: { role: string; content: string }[] = await res.json();
     setItems(history.map(h => ({
       kind: h.role === 'user' ? 'user' : 'text',
@@ -182,16 +192,12 @@ export function Chat() {
     };
     pushTextItem();
 
-    // Post the message (non-blocking on backend)
-    await fetch(`${apiUrl}/api/sessions/${activeId}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
-    });
-
-    // Open SSE stream
     try {
-      const res = await fetch(`${apiUrl}/api/sessions/${activeId}/stream`);
+      // Single POST request: saves message, subscribes to Redis, starts agent, streams events.
+      const res = await apiFetch(`${apiUrl}/api/sessions/${activeId}/stream`, {
+        method: 'POST',
+        body: JSON.stringify({ message: text }),
+      });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
       const reader = res.body.getReader();
@@ -323,9 +329,21 @@ export function Chat() {
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5">由 MCP 工具驱动</div>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            在线
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              在线
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200">
+              <span className="font-medium">{username}</span>
+            </div>
+            <button
+              onClick={onLogout}
+              className="text-[11px] text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+              title="退出登录"
+            >
+              退出
+            </button>
           </div>
         </div>
 

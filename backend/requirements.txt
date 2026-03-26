@@ -8,3 +8,5 @@ aiosqlite>=0.21.0,<0.22.0
 httpx>=0.25.0,<0.26.0
 google-adk>=0.1.0
 litellm>=1.72.6
+python-jose[cryptography]>=3.3.0
+passlib>=1.7.4

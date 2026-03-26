@@ -3,12 +3,13 @@
 import os
 from typing import Any
 
-# Force local connections to bypass any system HTTP proxy
+# Bypass any system/daemon HTTP proxy for all outbound connections.
+# In Docker, the daemon may inject proxy vars; we clear them entirely.
 for _var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
              "http_proxy", "https_proxy", "all_proxy"):
     os.environ.pop(_var, None)
-os.environ["NO_PROXY"] = "localhost,127.0.0.1,::1"
-os.environ["no_proxy"] = "localhost,127.0.0.1,::1"
+os.environ["NO_PROXY"] = "*"
+os.environ["no_proxy"] = "*"
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.run_config import RunConfig, StreamingMode
@@ -82,7 +83,7 @@ def _serialize_event(event: Any) -> dict:
 class AgentService:
     """Lazy-initialised agent runner. Created once, reused across requests."""
 
-    APP_NAME = "backend_agent"
+    APP_NAME = "agents"
     USER_ID = "user"
 
     def __init__(self):
@@ -102,14 +103,15 @@ class AgentService:
         agent = LlmAgent(
             model=LiteLlm(
                 model=os.getenv("LLM_MODEL", "deepseek/deepseek-chat"),
-                api_key=os.getenv("DEEPSEEK_API_KEY", "sk-21860843e2d74e5eb52060b6a04880f4"),
+                api_key=os.getenv("DEEPSEEK_API_KEY"),
                 api_base=os.getenv("LLM_API_BASE", "https://api.deepseek.com/v1"),
             ),
             name="assistant",
             instruction=(
-                "You are a helpful assistant that can manage todo items. "
-                "You can add, update, delete, and toggle todo items using the available MCP tools. "
-                "Always be helpful and provide clear feedback about the actions you take."
+                "You are a helpful assistant. "
+                "You have access to CLI tools (ls, cat, bash) and a deep_research tool. "
+                "Only use tools when the user explicitly asks you to run a command or do research. "
+                "For casual conversation, just reply directly without calling any tools."
             ),
             tools=[mcp_toolset, FunctionTool(deep_research)],
         )

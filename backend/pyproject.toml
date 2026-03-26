@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ui-component-backend"
+name = "agent-demo-backend"
 version = "0.1.0"
-description = "Backend service for UI Component Demo"
+description = "Backend service for Agent Demo"
 authors = [
-    {name = "dptech-corp", email = "it@dp.tech"}
+    {name = "yangruiming", email = "yangruiming2001@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.9"
@@ -18,29 +18,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.6",
-    "aiosqlite>=0.21.0"
+    "aiosqlite>=0.21.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib>=1.7.4",
+    "google-adk>=0.1.0",
+    "litellm>=1.72.6"
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "httpx>=0.25.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.6.0"
-]
-
-[tool.black]
-line-length = 88
-target-version = ['py39']
-
-[tool.isort]
-profile = "black"
-line_length = 88
-
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true

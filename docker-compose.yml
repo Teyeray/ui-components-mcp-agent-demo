@@ -1,11 +1,7 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
     container_name: ui-mcp-redis
-    # ports:
-    #   - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -32,6 +28,12 @@ services:
     volumes:
       - ./mcp-server/src:/app/src
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/sse')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   backend:
     build:
@@ -42,11 +44,17 @@ services:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379
-      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - MCP_SERVER_URL=http://mcp-server:8001
+      - LLM_MODEL=${LLM_MODEL:-deepseek/deepseek-chat}
+      - LLM_API_BASE=${LLM_API_BASE:-https://api.deepseek.com/v1}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=INFO
-      - SESSION_ID=${SESSION_ID}
     depends_on:
       redis:
+        condition: service_healthy
+      mcp-server:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
@@ -64,13 +72,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: http://localhost:8000
-        VITE_SSE_URL: http://localhost:8000/events
     container_name: ui-mcp-frontend
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_SSE_URL=http://localhost:8000/events
     depends_on:
       backend:
         condition: service_healthy
@@ -79,26 +83,27 @@ services:
       - ./frontend/public:/app/public
     restart: unless-stopped
 
-  agent:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-    container_name: ui-mcp-agent
-    ports:
-      - "8002:8002"
-    environment:
-      - MCP_SERVER_URL=http://mcp-server:8001
-      - LLM_MODEL=deepseek/deepseek-chat
-      - DEEPSEEK_API_KEY=sk-d58818f8d2564e15a73f97a5286670e8
-      - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL}
-      - SESSION_DB_URL=${SESSION_DB_URL}
-    depends_on:
-      mcp-server:
-        condition: service_started
-    volumes:
-      - ./agent/src:/app/src
-    restart: unless-stopped
-    command: ["./start_web.sh"]
+  # agent: standalone ADK web service (optional, not used by backend)
+  # Uncomment if you need the ADK web UI at port 8002.
+  # agent:
+  #   build:
+  #     context: ./agent
+  #     dockerfile: Dockerfile
+  #   container_name: ui-mcp-agent
+  #   ports:
+  #     - "8002:8002"
+  #   environment:
+  #     - MCP_SERVER_URL=http://mcp-server:8001
+  #     - LLM_MODEL=${LLM_MODEL:-deepseek/deepseek-chat}
+  #     - LLM_API_BASE=${LLM_API_BASE:-https://api.deepseek.com/v1}
+  #     - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+  #   depends_on:
+  #     mcp-server:
+  #       condition: service_started
+  #   volumes:
+  #     - ./agent/src:/app/src
+  #   restart: unless-stopped
+  #   command: ["./start_web.sh"]
 
 volumes:
   redis_data:
