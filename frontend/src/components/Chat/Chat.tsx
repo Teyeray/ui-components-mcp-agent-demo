@@ -23,6 +23,14 @@ interface ADKEvent {
 
 function uid() { return Math.random().toString(36).slice(2); }
 
+function autoSessionName(text: string): string {
+  const s = text.trim().replace(/\s+/g, ' ');
+  if (s.length <= 20) return s;
+  const cut = s.slice(0, 20);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 8 ? cut.slice(0, lastSpace) : cut) + '…';
+}
+
 // ── Tool bubble ────────────────────────────────────────────────────────────
 
 function ToolBubble({ item }: { item: Extract<ConvItem, { kind: 'tool' }> }) {
@@ -30,39 +38,35 @@ function ToolBubble({ item }: { item: Extract<ConvItem, { kind: 'tool' }> }) {
   const done = item.result !== undefined;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 text-xs font-mono w-fit max-w-[85%] overflow-hidden shadow-sm">
+    <div style={{ border: '1px solid #d0d0d2', background: '#ebebed', fontFamily: "'Manrope', sans-serif" }} className="text-xs w-fit max-w-[85%] overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2.5 px-4 py-2.5 w-full text-left"
+        style={{ color: '#555' }}
       >
-        <span className={`text-slate-400 text-base ${!done ? 'animate-spin' : ''}`}
-              style={done ? {} : { animationDuration: '2s' }}>
-          ⚙
-        </span>
-        <span className="font-sans font-medium text-slate-600 text-[13px] tracking-tight">{item.name}</span>
+        <span className={!done ? 'animate-spin' : ''} style={{ color: '#0A3A8A', fontSize: '0.9rem', ...(done ? {} : { animationDuration: '2s' }) }}>⚙</span>
+        <span style={{ fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#141414', fontWeight: 500 }}>{item.name}</span>
         {done
-          ? <span className="ml-0.5 text-emerald-500 text-xs font-sans">✓</span>
-          : <span className="ml-0.5 text-amber-400 text-xs font-sans animate-pulse">running</span>}
-        <span className="ml-auto text-slate-300 font-sans text-xs">{open ? '▾' : '▸'}</span>
+          ? <span style={{ color: '#0A3A8A', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>done</span>
+          : <span style={{ color: '#888', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase' }} className="animate-pulse">running</span>}
+        <span style={{ marginLeft: 'auto', color: '#aaa', fontSize: '0.65rem' }}>{open ? '▾' : '▸'}</span>
       </button>
 
       {open && (
-        <div className="border-t border-slate-200 bg-white divide-y divide-slate-100">
+        <div style={{ borderTop: '1px solid #d0d0d2', background: '#f5f5f6' }}>
           {item.args !== undefined && (
             <div className="px-4 py-3">
-              <div className="text-[10px] font-sans font-semibold text-slate-400 uppercase tracking-widest mb-1.5">Input</div>
-              <pre className="whitespace-pre-wrap break-words text-slate-700 leading-relaxed">
+              <div style={{ fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#888', marginBottom: '6px' }}>Input</div>
+              <pre className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: '#333', fontSize: '0.72rem' }}>
                 {JSON.stringify(item.args, null, 2)}
               </pre>
             </div>
           )}
           {done && (
-            <div className="px-4 py-3">
-              <div className="text-[10px] font-sans font-semibold text-emerald-500 uppercase tracking-widest mb-1.5">Output</div>
-              <pre className="whitespace-pre-wrap break-words text-slate-700 leading-relaxed">
-                {typeof item.result === 'string'
-                  ? item.result
-                  : JSON.stringify(item.result, null, 2)}
+            <div className="px-4 py-3" style={{ borderTop: '1px solid #d0d0d2' }}>
+              <div style={{ fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#0A3A8A', marginBottom: '6px' }}>Output</div>
+              <pre className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: '#333', fontSize: '0.72rem' }}>
+                {typeof item.result === 'string' ? item.result : JSON.stringify(item.result, null, 2)}
               </pre>
             </div>
           )}
@@ -76,8 +80,8 @@ function ToolBubble({ item }: { item: Extract<ConvItem, { kind: 'tool' }> }) {
 
 function Avatar() {
   return (
-    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm">
-      <span className="text-white text-xs font-bold">AI</span>
+    <div style={{ width: '28px', height: '28px', background: '#0A3A8A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <span style={{ color: '#e6e6e8', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.05em', fontFamily: "'Manrope', sans-serif" }}>AI</span>
     </div>
   );
 }
@@ -177,7 +181,12 @@ export function Chat({ token, username, onLogout }: ChatProps) {
     const text = input.trim();
     if (!text || streaming || !activeId) return;
 
+    const isFirstMessage = items.length === 0;
     setItems(prev => [...prev, { kind: 'user', id: uid(), text }]);
+
+    if (isFirstMessage) {
+      renameSession(activeId, autoSessionName(text));
+    }
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = '42px';
     setStreaming(true);
@@ -302,10 +311,17 @@ export function Chat({ token, username, onLogout }: ChatProps) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  return (
-    <div className="flex h-screen bg-slate-50">
+  const S = {
+    root:    { display: 'flex', height: '100vh', background: '#e6e6e8', fontFamily: "'Manrope', sans-serif" } as React.CSSProperties,
+    area:    { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, height: '100vh' } as React.CSSProperties,
+    header:  { flexShrink: 0, borderBottom: '1px solid #d0d0d2', background: '#efefef', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: '12px' } as React.CSSProperties,
+    msgs:    { flex: 1, overflowY: 'auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '20px' } as React.CSSProperties,
+    footer:  { flexShrink: 0, borderTop: '1px solid #d0d0d2', background: '#efefef', padding: '16px 24px' } as React.CSSProperties,
+  };
 
-      {/* ── Sidebar ── */}
+  return (
+    <div style={S.root}>
+
       <Sidebar
         sessions={sessions}
         activeId={activeId}
@@ -315,57 +331,46 @@ export function Chat({ token, username, onLogout }: ChatProps) {
         onRename={renameSession}
       />
 
-      {/* ── Chat area ── */}
-      <div className="flex flex-col flex-1 min-w-0 h-screen">
+      <div style={S.area}>
 
-        {/* ── Header ── */}
-        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-4 flex items-center gap-3 shadow-sm">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow">
-            <span className="text-white text-xs font-bold">AI</span>
+        {/* Header */}
+        <div style={S.header}>
+          <div style={{ width: '28px', height: '28px', background: '#0A3A8A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#e6e6e8', fontSize: '0.5rem', fontWeight: 600, letterSpacing: '0.05em' }}>AI</span>
           </div>
           <div>
-            <div className="font-semibold text-slate-800 text-sm leading-none">
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontSize: '1.05rem', fontWeight: 600, color: '#141414', lineHeight: 1 }}>
               {sessions.find(s => s.id === activeId)?.name || 'Agent Chat'}
             </div>
-            <div className="text-[11px] text-slate-400 mt-0.5">由 MCP 工具驱动</div>
+            <div style={{ fontSize: '0.6rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#888', marginTop: '2px' }}>MCP · 工具驱动</div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              在线
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0A3A8A' }}>
+              <span style={{ width: '5px', height: '5px', background: '#0A3A8A', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
+              Online
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200">
-              <span className="font-medium">{username}</span>
-            </div>
-            <button
-              onClick={onLogout}
-              className="text-[11px] text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
-              title="退出登录"
-            >
-              退出
-            </button>
+            <span style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#555' }}>{username}</span>
+            <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#aaa', transition: 'color 0.2s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#141414')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
+            >退出</button>
           </div>
         </div>
 
-        {/* ── Messages ── */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+        {/* Messages */}
+        <div style={S.msgs}>
 
           {!activeId && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 select-none">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center text-3xl shadow-inner">
-                💬
-              </div>
-              <p className="text-sm font-medium text-slate-500">选择或新建一个对话</p>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', userSelect: 'none' }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2.5rem', fontWeight: 300, fontStyle: 'italic', color: '#bbb', letterSpacing: '-0.02em' }}>选择对话</div>
+              <div style={{ fontSize: '0.65rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#bbb' }}>或在左侧新建</div>
             </div>
           )}
 
           {activeId && items.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 select-none">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center text-3xl shadow-inner">
-                💬
-              </div>
-              <p className="text-sm font-medium text-slate-500">发送消息开始对话</p>
-              <p className="text-xs text-slate-400">支持工具调用，结果实时流式返回</p>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', userSelect: 'none' }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2.5rem', fontWeight: 300, fontStyle: 'italic', color: '#bbb', letterSpacing: '-0.02em' }}>开始对话</div>
+              <div style={{ fontSize: '0.65rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#bbb' }}>支持工具调用 · 实时流式</div>
             </div>
           )}
 
@@ -373,8 +378,8 @@ export function Chat({ token, username, onLogout }: ChatProps) {
 
             /* user */
             if (item.kind === 'user') return (
-              <div key={item.id} className="flex justify-end gap-2 items-end">
-                <div className="rounded-2xl rounded-br-sm bg-gradient-to-br from-violet-500 to-indigo-600 text-white px-4 py-3 text-sm max-w-[72%] leading-relaxed shadow-sm">
+              <div key={item.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ background: '#0A3A8A', color: '#e6e6e8', padding: '10px 16px', fontSize: '0.875rem', maxWidth: '72%', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {item.text}
                 </div>
               </div>
@@ -382,7 +387,7 @@ export function Chat({ token, username, onLogout }: ChatProps) {
 
             /* tool */
             if (item.kind === 'tool') return (
-              <div key={item.id} className="flex justify-start gap-2 items-start">
+              <div key={item.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                 <Avatar />
                 <ToolBubble item={item} />
               </div>
@@ -390,25 +395,14 @@ export function Chat({ token, username, onLogout }: ChatProps) {
 
             /* assistant text */
             return (
-              <div key={item.id} className="flex justify-start gap-2 items-start">
+              <div key={item.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                 <Avatar />
-                <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 text-sm max-w-[80%] leading-relaxed text-slate-800 whitespace-pre-wrap shadow-sm">
+                <div style={{ background: '#f5f5f6', border: '1px solid #d0d0d2', padding: '10px 16px', fontSize: '0.875rem', maxWidth: '80%', lineHeight: 1.7, color: '#141414', whiteSpace: 'pre-wrap' }}>
                   {item.text
-                    ? <>
-                        {item.text}
-                        {item.streaming && (
-                          <span className="inline-block w-0.5 h-[1em] bg-violet-400 ml-0.5 align-middle animate-pulse rounded-full" />
-                        )}
-                      </>
+                    ? <>{item.text}{item.streaming && <span style={{ display: 'inline-block', width: '1px', height: '1em', background: '#0A3A8A', marginLeft: '2px', verticalAlign: 'middle', animation: 'cursor-blink 1s step-end infinite' }} />}</>
                     : item.streaming && (
-                        <span className="flex gap-1 items-center h-4">
-                          {[0, 150, 300].map(delay => (
-                            <span
-                              key={delay}
-                              className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce"
-                              style={{ animationDelay: `${delay}ms` }}
-                            />
-                          ))}
+                        <span style={{ display: 'flex', gap: '4px', alignItems: 'center', height: '16px' }}>
+                          {[0, 150, 300].map(d => <span key={d} style={{ width: '4px', height: '4px', background: '#aaa', borderRadius: '50%', animation: `bounce 1s ${d}ms infinite` }} />)}
                         </span>
                       )
                   }
@@ -420,44 +414,40 @@ export function Chat({ token, username, onLogout }: ChatProps) {
           <div ref={bottomRef} />
         </div>
 
-        {/* ── Input ── */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-4">
-          <div className="max-w-3xl mx-auto flex gap-3 items-end">
-            <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
-                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100 transition-all leading-relaxed placeholder:text-slate-400 disabled:opacity-50"
-                rows={1}
-                placeholder={activeId ? "输入消息… (Enter 发送，Shift+Enter 换行)" : "请先选择或新建一个对话"}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={streaming || !activeId}
-                style={{ minHeight: '46px', maxHeight: '160px' }}
-                onInput={e => {
-                  const t = e.currentTarget;
-                  t.style.height = 'auto';
-                  t.style.height = Math.min(t.scrollHeight, 160) + 'px';
-                }}
-              />
-            </div>
+        {/* Input */}
+        <div style={S.footer}>
+          <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder={activeId ? "输入消息…" : "请先选择或新建一个对话"}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={streaming || !activeId}
+              style={{ flex: 1, resize: 'none', background: '#e6e6e8', border: '1px solid #d0d0d2', borderRadius: 0, padding: '10px 14px', fontSize: '0.875rem', fontFamily: "'Manrope', sans-serif", outline: 'none', lineHeight: 1.6, color: '#141414', minHeight: '44px', maxHeight: '160px', transition: 'border-color 0.2s' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#0A3A8A')}
+              onBlur={e => (e.currentTarget.style.borderColor = '#d0d0d2')}
+              onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; }}
+            />
             <button
               onClick={send}
               disabled={streaming || !input.trim() || !activeId}
-              className="shrink-0 w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shadow-sm hover:shadow active:scale-95"
+              style={{ flexShrink: 0, width: '44px', height: '44px', background: streaming || !input.trim() || !activeId ? '#d0d0d2' : '#141414', border: 'none', cursor: streaming || !input.trim() || !activeId ? 'not-allowed' : 'pointer', color: '#e6e6e8', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}
             >
               {streaming
-                ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                : <svg className="w-4 h-4 rotate-90" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                ? <span style={{ width: '14px', height: '14px', border: '1px solid #e6e6e8', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                : <svg style={{ width: '14px', height: '14px', transform: 'rotate(90deg)' }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
                   </svg>
               }
             </button>
           </div>
-          <p className="text-center text-[11px] text-slate-300 mt-2">Enter 发送 · Shift+Enter 换行</p>
+          <p style={{ textAlign: 'center', fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#aaa', marginTop: '8px' }}>Enter 发送 · Shift+Enter 换行</p>
         </div>
 
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`}</style>
     </div>
   );
 }

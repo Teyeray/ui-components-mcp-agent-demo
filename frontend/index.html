@@ -4,7 +4,35 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UI Component MCP Demo</title>
+    <title>Agent Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Manrope', sans-serif; background: #e6e6e8; }
+      @keyframes float-plane {
+        0%   { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+        100% { transform: translate(-48%, -49%) rotate(1deg) scale(1.02); }
+      }
+      @keyframes scroll-line {
+        0%   { transform: translateX(-100%); }
+        50%  { transform: translateX(0); }
+        100% { transform: translateX(100%); }
+      }
+      @keyframes text-glitch {
+        0%   { transform: translate(0); }
+        20%  { transform: translate(-2px, 1px); }
+        40%  { transform: translate(-1px, -1px); }
+        60%  { transform: translate(2px, 1px); }
+        80%  { transform: translate(1px, -1px); }
+        100% { transform: translate(0); }
+      }
+      @keyframes cursor-blink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
